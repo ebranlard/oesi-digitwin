@@ -1,0 +1,57 @@
+""" 
+Time-integrate a mass spring damper system with arbitrary forcing
+using Duhamel's integral method, or a time integration scheme
+
+"""
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+# Welib
+from welib.system.mech_system import MechSystem
+from welib.system.statespacelinear import LinearStateSpace
+from welib.tools.signal_analysis import correlated_signal, step
+from scipy.interpolate import interp1d
+
+
+# --- Parameters defining the system and simulation
+m           = 250.0 # system mass
+k           = 40.0  # spring constant
+c           = 60.0  # damping constant
+nPeriods    = 5
+nPerPeriods = 300
+useStep = True
+
+# --- Derived parameters
+omega0 = np.sqrt(k/m)
+T = 2*np.pi/omega0
+time = np.linspace(0,nPeriods*T,nPerPeriods*nPeriods+1)
+
+# --- Initialize a linear time invariant system
+if useStep:
+    F = step(time)
+else:
+    F = correlated_signal(coeff=0.9, n=len(time), seed=129) # seed provided for reproducibility
+    F=F-F[0]
+
+# --- Do the same with the linear state space class
+A = np.array([[0, 1], 
+              [-k/m, -c/m]])
+
+B = np.array([[0], 
+              [1/m]])
+
+sysl = LinearStateSpace(A=A, B=B)
+sysl.setInputTimeSeries(time,F)
+print(sysl)
+resln, _ = sysl.integrate(time, method='LSODA')
+resld, _ = sysl.integrate(time, method='impulse')
+
+
+
+# --- Plot
+axes = sysl.plot_x_legacy(res = resln, label = 'Lin sys Numerical int.', ls = ':')
+axes = sysl.plot_x_legacy(res = resld, label = 'Lin sys convolution'   , axes=axes, ls = '-.', c = 'k')
+fig=axes[0].get_figure()
+fig.subplots_adjust(left=0.14, right=0.99, top=0.98, bottom=0.10, hspace=0.20, wspace=0.20)
+axes[0].legend()
+axes[0].set_title('System - 2nd order - Duhamel or numerical')

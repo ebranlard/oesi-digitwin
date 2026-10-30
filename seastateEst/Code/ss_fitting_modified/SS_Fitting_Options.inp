@@ -1,0 +1,9 @@
+%%---- SS Fitting Options ----%%
+C:\Jonah\Uni\PhD\OESI\Code\ss_fitting_modified\HydroData\marin_semi     % Rad.FileName:  Wamit Files name and Location
+[1 1 1 1 1 1]               % gp.DoF:       - Degree of Freedom enabled following the order Surge, Sway, Heave, Roll, Pitch and Yaw
+[0.0 2.5]                   % Rad.twr:      - Typical local frequencies range (rad/s)
+1                           % Rad.wwf:      - Frequencies weighting factors
+2                           % Rad.tfi:      - Identification Method: 1-Freq Ident; 2-FDI; 3-Time-Domain LS method; 4-Time-Domain Realization theory
+0.98                        % Rad.fit:      - Fit required for parametric model
+0                           % Rad.ppmf:     - Plot the parametric model fit (0 or 1)
+1                           % Rad.fmt:      - Manual (1) or Automatic (0) order reduction

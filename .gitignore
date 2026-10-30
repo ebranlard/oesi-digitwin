@@ -1,0 +1,21 @@
+# Ignore all files in the root folder
+/*
+
+# But do not ignore these specific folders
+!/seastateEst/
+!/monopile/
+!/.gitignore
+
+*.exe
+*.dll
+*.vtk
+*.out
+*.outb
+*.sum
+*.bak
+*.lin
+*.pdf
+*.docx
+*.xlsx
+
+__pycache__
