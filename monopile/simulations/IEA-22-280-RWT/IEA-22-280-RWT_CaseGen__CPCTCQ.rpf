@@ -1,0 +1,27 @@
+# ----- Rotor performance tables for the wind turbine: IEA-22-280-RWT_CaseGen_ ----- 
+# ------------ Written using weio
+
+# Pitch angle vector, 3 entries - x axis (matrix columns) (deg)
+-5.0   20.0   45.0   
+# TSR vector, 3 entries - y axis (matrix rows) (-)
+2.0    8.0    14.0    
+# Power coefficient
+
+0.004491   0.057385   -0.003412   
+0.439643   -0.203900   -1.080348   
+-0.336099   -1.683832   -5.899250   
+
+
+#  Thrust coefficient
+
+0.061984   0.072393   -0.000336   
+0.853188   -0.168321   -0.408785   
+1.653209   -1.159644   -0.983255   
+
+
+# Torque coefficient
+
+0.002246   0.028693   -0.001706   
+0.054955   -0.025488   -0.135043   
+-0.024007   -0.120274   -0.421375   
+
