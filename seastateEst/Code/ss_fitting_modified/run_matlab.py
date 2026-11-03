@@ -43,7 +43,7 @@ def RedOrder_SSexc(n, options):
 ### --- ### Run the script. 
 ## Inputs for SSRad
 options_rad = {
-    "FileName": r"C:\Jonah\Uni\PhD\OESI\Code\ss_fitting_modified\HydroData\marin_semi", # Wamit Files name and Location
+    "FileName": r"C:\Jonah\Uni\PhD\OESI\seastateEst\Code\ss_fitting_modified\HydroData\marin_semi", # Wamit Files name and Location
     'DoF': matlab.double([1, 1, 1, 1, 1, 1]),   # Degree of Freedom enabled following the order Surge, Sway, Heave, Roll, Pitch and Yaw
     'twr': matlab.double([0.0, 2.5]),           # Typical local frequencies range (rad/s)
     'wwf': 1.0,                                 # Frequencies weighting factors
@@ -62,7 +62,7 @@ options_rad = {
 tc = 0
 
 options_exc = {
-    "FileName": r"C:\Jonah\Uni\PhD\OESI\Code\ss_fitting_modified\HydroData\marin_semi", # Wamit Files name and Location
+    "FileName": r"C:\Jonah\Uni\PhD\OESI\seastateEst\Code\ss_fitting_modified\HydroData\marin_semi", # Wamit Files name and Location
     "DoF": matlab.double([1, 1, 1, 1, 1, 1]),   # Degree of Freedom enabled
     "WaveTMax": 4600,                           # Analysis time for incident wave calculations (sec) [unused when WaveMod=0] [determines WaveDOmega=2Pi/WaveTMax in the IFFT]
     "dT": 0.2,                                  # Time step (should match FAST)
@@ -75,7 +75,7 @@ options_exc = {
     "WaveDir": 0.0,                             # Incident wave propagation heading direction (degrees) [unused when WaveMod=0]
     "OutFileName": "marin_semi"                 # Output file name
 }
-base_n = [1, 1, 1, 1, 1, 1] # Order of the fit for each DoF
+base_n = [2, 2, 2, 2, 2, 4] # Order of the fit for each DoF
 manual_order_SSexc = RedOrder_SSexc(base_n, options_exc) # Order of the fit filtered as needed for input of the MATLAB function
 
 eng = startMatlabEngine()

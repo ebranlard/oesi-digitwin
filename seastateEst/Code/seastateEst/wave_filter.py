@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 def PM_waves(H_s,T_p,f):
     """
@@ -40,27 +41,50 @@ def JONSWAP_waves(H_s,T_p,f):
     
     return S_JONSWAP
 
-def waveFilter2Ord(zeta, H_s, T_p, f):
+def waveFilter2Ord(zeta, H_s, T_p, f=None):
     """
-    This function computes the second order wave filter.
-    The input f is just a vector like: f = np.linspace(1e-5,0.5,1000)
+    This function computes the second order wave shaping filter.
+
+    INPUTS:
+          zeta: parameter, typically 0.05 <= zeta <= 0.15
+          H_s: Significant wave height [m]
+          T_p: Peak spectral period [s]
+          f: vector like: f = np.linspace(1e-5,0.5,1000);   If f is None, S_eta will be returned as 0.
+        OUTPUTS:
+          S_eta: PSD of wave shaping filter [m^2 s]
+          k_w: parameter [-]
+          omega_0: Peak spectral angular frequency [rad/s]
     """
     f_0 = 1/T_p
+    omega_0 = 2 * np.pi * f_0
 
     # Find k_w by matching the peak of S_eta and S_JONSWAP
     Smax = JONSWAP_waves(H_s,T_p,f_0)
     k_w = 8*np.pi**2*zeta*f_0**2*np.sqrt(Smax)
 
-    # Compute S_eta #TODO: might have to be done in terms of omega, not in terms of f
-    S_eta = k_w**2 / (
-        16*np.pi**4*((f_0**2-f**2)**2 + (2*zeta*f_0*f)**2)
-    )
-    return S_eta
+    # Compute S_eta(f) and check if f is provided #TODO: might have to be done in terms of omega, not in terms of f
+    if f is None:
+        S_etaf = 0.0
+    else:
+        # Compute S_eta in terms of f
+        S_etaf = k_w**2 / (
+            16*np.pi**4*((f_0**2-f**2)**2 + (2*zeta*f_0*f)**2)
+        )
+
+    return S_etaf, k_w, omega_0
 
 ## Testing
 
-# # S_eta in terms of omega
-# omega = np.linspace(0, 2, 100)
-# S_eta = k_w**2 / (
-#     (omega_0**2 - omega**2)**2 + (2*zeta*omega_0*omega)**2
-# )
+# H_s = 1.1
+# T_p = 8.52
+# f = np.linspace(1e-5,0.5,1000)
+# zeta = 0.1
+
+# S_JS = JONSWAP_waves(H_s,T_p,f)
+# S_eta, k_w, omega_0 = waveFilter2Ord(zeta, H_s, T_p, f)
+
+# plt.figure()
+# plt.plot(f,S_JS, label='JS')
+# plt.plot(f, S_eta, label='2nd order filter')
+# plt.xlabel('f in Hz')
+# plt.legend()

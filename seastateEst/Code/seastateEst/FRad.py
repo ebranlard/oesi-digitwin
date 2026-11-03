@@ -97,7 +97,8 @@ def K_from_df(K_df, k):
 def Conv_Rdtn(K_df, qdot_history, RdtnTMax):
     '''
     This function computes the instantaneous 6-DOF memory force Fmem at the CURRENT time by performing the convolution.
-    The function does not account for the negative sign Fmem has in Frad.
+    
+    INPUTS:
     K_df:           Data frame whith entries: n[-], t[s], K(1,1)[kg/s^2], K(1,2)[kg/s^2], ..., K(2,1)[kg/s^2], ..., K(6,6)[kgm/s^2]
     qdot_history:   Velocity time history. Numpy array of shape (6, Total_Sim_Steps)
     tmax:           Analysis time for wave radiation kernel calculations (sec)
@@ -109,7 +110,7 @@ def Conv_Rdtn(K_df, qdot_history, RdtnTMax):
     dt = t[1] - t[0]
 
     # MaxInd is the minimum of: length of K, length of qdot, steps within tmax
-    MaxInd = min(K_df['n'].shape[0], qdot_history.shape[1], int(RdtnTMax/dt)) #TODO maybe add -1 for zero indexing in python
+    MaxInd = min(K_df['n'].shape[0], qdot_history.shape[1], int(RdtnTMax/dt))
     print('MaxInd for convolution:', MaxInd)
 
     # Setting up qdot for specified time window

@@ -3,7 +3,7 @@ IEA 15 MW offshore reference model all mass and inertia in the platform
 ---------------------- SIMULATION CONTROL -------------------------------------- 
 False                  Echo        - Echo input data to <RootName>.ech (flag) 
 "FATAL"                AbortLevel  - Error level when simulation should abort (string) {"WARNING", "SEVERE", "FATAL"} 
-100.0                  TMax        - Total run time (s) 
+300.0                  TMax        - Total run time (s) 
 0.025                   DT          - Integration time step (s)  
 3                      ModCoupling - Module coupling method (switch) {1=loose; 2=tight with fixed Jacobian updates (DT_UJac); 3=tight with automatic Jacobian updates}
 2                      InterpOrder - Interpolation order for input/output time history (-) {1=linear, 2=quadratic} 
@@ -22,7 +22,7 @@ False                  Echo        - Echo input data to <RootName>.ech (flag)
 1                      CompSeaSt   - Compute sea state information (switch) {0=None; 1=SeaState}
 1                      CompHydro   - Compute hydrodynamic loads (switch) {0=None; 1=HydroDyn}
 0                      CompSub     - Compute sub-structural dynamics (switch) {0=None; 1=SubDyn; 2=External Platform MCKF}
-0                      CompMooring - Compute mooring system (switch) {0=None; 1=MAP++; 2=FEAMooring; 3=MoorDyn; 4=OrcaFlex}
+3                      CompMooring - Compute mooring system (switch) {0=None; 1=MAP++; 2=FEAMooring; 3=MoorDyn; 4=OrcaFlex}
 0                      CompIce     - Compute ice loads (switch) {0=None; 1=IceFloe; 2=IceDyn}
 0                      CompSoil    - Compute soil-structural dynamics (switch) {0=None; 1=SoilDyn}
 0                      MHK         - MHK turbine type (switch) {0=Not an MHK turbine; 1=Fixed MHK turbine; 2=Floating MHK turbine}

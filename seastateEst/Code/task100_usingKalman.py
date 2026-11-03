@@ -1,0 +1,319 @@
+# Enable Autoreload
+import notebook_setup # type: ignore
+notebook_setup.enable_autoreload()
+
+# General packages
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+# OpenFAST toolbox
+from openfast_toolbox.io import FASTOutputFile # type: ignore
+from openfast_toolbox.io import FASTInputFile # type: ignore
+
+# Welib
+from welib.kalman import kalman
+
+# Seastate Estimator
+from seastateEst import FRad
+from seastateEst import linData
+from seastateEst import read_ssFiles
+from seastateEst import wave_filter
+
+# =============================================================================
+# --- Parameters defining the system and simulation ---
+# =============================================================================
+# Set the DOFs
+dof = {
+    "Surge": True,
+    "Sway": False,
+    "Heave": True,
+    "Roll": False,
+    "Pitch": True,
+    "Yaw": False,
+}
+n_dofs = sum(dof.values())
+
+# --- Structure mass
+filepath_mass = r"C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_Full_LINEAR_Falling\main.1.lin"
+M_s, __ = linData.rigidBodyMass(filepath_mass)
+# Added mass at infinite frequency
+filepath_Ainf = r"C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_Full\HydroData\IEA-15-240-RWT-UMaineSemi.1"
+A_inf = FRad.Ainf(filepath_Ainf, WtrDens=1025)
+# Total mass
+M = M_s + A_inf
+# Filter for active dofs
+active_dof = list(dof.values())
+M = M[np.ix_(active_dof, active_dof)]
+# Compute inverse mass
+M_inv = np.linalg.inv(M)
+
+# --- Stiffness (K) and damping (C)
+# filepath_KC = r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves' #TODO chose from what OpenFAST simulation I really want K and C
+# filepath_KC_lin = str(os.path.join(filepath_KC, 'main.1.lin'))
+filepath_KC = r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_v5.0'
+filepath_KC_lin = str(os.path.join(filepath_KC, 'main_lin.1.lin'))
+
+inv_M_K = linData.invMK(filepath_KC_lin, dof)   # M^(-1)*K
+inv_M_C = linData.invMC(filepath_KC_lin, dof)   # M^(-1)*C
+# Sanity check if same DoFs are enabled as in this python file as in the OpenFAST ED file
+filepath_KC_ED = os.path.join(filepath_KC, 'ED.dat')
+ED_file = FASTInputFile(filepath_KC_ED)
+assert dof["Surge"] == ED_file["PtfmSgDOF"], "Surge DOF mismatch!"
+assert dof["Sway"]  == ED_file["PtfmSwDOF"], "Sway DOF mismatch!"
+assert dof["Heave"] == ED_file["PtfmHvDOF"], "Heave DOF mismatch!"
+assert dof["Roll"]  == ED_file["PtfmRDOF"],  "Roll DOF mismatch!"
+assert dof["Pitch"] == ED_file["PtfmPDOF"],  "Pitch DOF mismatch!"
+assert dof["Yaw"]   == ED_file["PtfmYDOF"],  "Yaw DOF mismatch!"
+
+# --- SS_EXCTN matrices
+# filepath_ssexctn = r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\Parametric_study\Lock_Rad\HydroData\marin_semi_Fit0.2_2_2_2_2_2_4.ssexctn'
+filepath_ssexctn = r'C:\Jonah\Uni\PhD\OESI\seastateEst\Code\ss_fitting_modified\HydroData\marin_semi.ssexctn'
+A_exc, B_exc, C_exc, n_exc, m_exc = read_ssFiles.read_ssexctn(filepath_ssexctn)
+
+# Reduce Exctn matrices depening on active dofs
+A_exc, B_exc, C_exc, n_exc = read_ssFiles.reduceExctn(dof, A_exc, B_exc, C_exc, n_exc, m_exc)
+
+# --- Load measurements from OpenFAST
+filepath_OF = r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_v5.0'
+dfOut = FASTOutputFile(os.path.join(filepath_OF, 'main.out')).toDataFrame()
+dfHDsum = FRad.RdtnKrnl(os.path.join(filepath_OF, 'main.HD.sum'))
+
+# Velocity and acceleration channels in dfOut
+velocity_channels = ['PtfmTVxi_[m/s]', 'PtfmTVyi_[m/s]', 'PtfmTVzi_[m/s]', 'PtfmRVxi_[deg/s]', 'PtfmRVyi_[deg/s]', 'PtfmRVzi_[deg/s]']
+accel_channels = ['PtfmTAxi_[m/s^2]', 'PtfmTAyi_[m/s^2]', 'PtfmTAzi_[m/s^2]', 'PtfmRAxi_[deg/s^2]', 'PtfmRAyi_[deg/s^2]', 'PtfmRAzi_[deg/s^2]']
+
+# Extract values from dfOut
+velocity_history = dfOut[velocity_channels].values.T
+velocity_history[3:6, :] = np.radians(velocity_history[3:6, :]) # Convert Roll, Pitch and Yaw velocities from deg/s to rad/s
+accel_history = dfOut[accel_channels].values.T
+accel_history[3:6, :] = np.radians(accel_history[3:6, :])
+time = dfOut['Time_[s]'].to_numpy()
+
+# --- Wave shaping filter
+seastate_file = FASTInputFile(os.path.join(filepath_OF, 'SeaState.dat')) # Match the parameters to the OF simulation
+hs = seastate_file["WaveHs"]                # Significant wave height
+tp = seastate_file["WaveTp"]                # Peak spectral period
+zeta = 0.1
+
+wave_Shapefilter = dict()
+wave_Shapefilter['S_eta(f)'], wave_Shapefilter['k_w'], wave_Shapefilter['omega_0'] = wave_filter.waveFilter2Ord(zeta, hs, tp)
+A_eta = np.block([[0, 1], [-wave_Shapefilter['omega_0']**2, -2 * zeta * wave_Shapefilter['omega_0']]])
+B_eta = np.array([[0], [wave_Shapefilter['k_w']]])
+C_eta = np.array([[1, 0]])
+n_eta = A_eta.shape[0]
+
+# =============================================================================
+# --- Build System matrices ---
+# =============================================================================
+
+A = np.block([
+    [np.zeros((n_dofs, n_dofs)), np.eye(n_dofs),             np.zeros((n_dofs, n_exc)), np.zeros((n_dofs, n_eta)), np.zeros((n_dofs, n_dofs))],
+    [-inv_M_K,                   -inv_M_C,                   M_inv @ C_exc,             np.zeros((n_dofs, n_eta)), M_inv                     ],
+    [np.zeros((n_exc, n_dofs)),  np.zeros((n_exc, n_dofs)),  A_exc,                     B_exc @ C_eta,             np.zeros((n_exc, n_dofs)) ],
+    [np.zeros((n_eta, n_dofs)),  np.zeros((n_eta, n_dofs)),  np.zeros((n_eta, n_exc)),  A_eta,                     np.zeros((n_eta, n_dofs)) ],
+    [np.zeros((n_dofs, n_dofs)), np.zeros((n_dofs, n_dofs)), np.zeros((n_dofs, n_exc)), np.zeros((n_dofs, n_eta)), np.zeros((n_dofs, n_dofs))]
+])
+
+B = np.block([
+    [np.zeros((n_dofs, n_dofs))],
+    [M_inv],
+    [np.zeros((n_exc, n_dofs))],
+    [np.zeros((n_eta, n_dofs))],
+    [np.zeros((n_dofs, n_dofs))]
+])
+
+# --- Error levels of the measurements
+R_diags = [1e-5, 1e-5, 1e-5, 1e-7, 1e-7, 1e-7]  #TODO use more realistic values for R
+R_diags = np.array(R_diags)[active_dof]         # Filter for active DoFs
+R = np.diag(R_diags)
+
+# --- Error levels of the model
+# Noise mapping matrix
+B_w = np.block([
+    [np.zeros((n_dofs, 1)), np.zeros((n_dofs, n_dofs))],
+    [np.zeros((n_dofs, 1)), np.zeros((n_dofs, n_dofs))],
+    [np.zeros((n_exc, 1)),  np.zeros((n_exc, n_dofs)) ],
+    [B_eta,                 np.zeros((n_eta, n_dofs)) ],
+    [np.zeros((n_dofs, 1)), np.eye(n_dofs)            ]
+])
+
+# Noise Covariance Matrix
+var_u_eta = 1.0**2       # Standard unit variance for the wave filter
+var_f_trans = 1e-2        # Allows translational forces to drift ~10kN/sec
+var_f_rot = 1e-4         # Allows rotational moments to drift ~100kNm/sec
+
+# Construct the diagonal elements for W
+W_diags = [var_u_eta] + [var_f_trans]*3 + [var_f_rot]*3
+W_diags = [W_diags[0]] + list(np.array(W_diags[1:])[active_dof])    # Filter for active DoFs
+W = np.diag(W_diags)
+
+# Project into full state space process noise
+Q_continuous = B_w @ W @ B_w.T
+
+# =============================================================================
+# --- Discretization & Measurement Mapping ---
+# =============================================================================
+
+# 1. Compute time step from OpenFAST time array
+dt = time[1] - time[0]
+
+# 2. Discretize the state matrices
+Xxd, Xud = kalman.KFDiscretize(A, B, dt, method='exponential')
+
+# 3. Scale process noise to discrete-time
+Q = Q_continuous * dt
+
+# 4. Construct Measurement Matrices (Yx and Yu)
+# Because your sensors measure acceleration (\ddot{q}), your measurement 
+# equations are identical to the structural acceleration rows of your state space.
+# We can cleanly extract these directly from rows [n_dofs : 2*n_dofs] of A and B:
+Yx = A[n_dofs : 2 * n_dofs, :]
+Yu = B[n_dofs : 2 * n_dofs, :]
+# Yx = np.block([
+#     [-inv_M_K, -inv_M_C, M_inv @ C_exc, np.zeros((n_dofs, n_eta)), np.zeros((n_dofs, n_dofs))]
+# ])
+
+# Yu = M_inv  # Direct throughput mapping of F_mem on physical acceleration
+
+
+# =============================================================================
+# --- Initialization & Execution Loop ---
+# =============================================================================
+
+# Initialize states and state error covariance matrix
+n_states = A.shape[0]
+z0 = np.zeros(n_states)          # Initial guess for all states (zeros)
+# z0[2] = -0.4                   # Initial heave displacement
+P0 = np.eye(n_states) * 1e-2     # Initial state uncertainty baseline
+
+# Pre-allocate array to store estimated states over time
+estimated_states_history = np.zeros((len(time), n_states))
+estimated_states_history[0, :] = z0
+
+# Execution loop over the OpenFAST time-series
+for i in range(1, len(time)):
+    
+    # --- Calculate Radiation Memory Force (F_mem)
+    current_velocity_slice = velocity_history[:, :i+1]
+
+    # Compute Fmem using only the historical data available up to step n
+    F_mem = FRad.Conv_Rdtn(dfHDsum, current_velocity_slice, RdtnTMax=60)[active_dof]
+    
+    # 2. Extract inputs and measurements for current time step n
+    u1 = F_mem.flatten()                  # Input vector (shape: n_dofs,)
+    y1 = accel_history[:, i][active_dof]    # Measured accelerations (shape: n_dofs,)
+    
+    # 3. Process time-step through the Kalman Filter engine
+    z0, P0, Kk = kalman.EstimateKFTimeStep(u1, y1, z0, Xxd, Xud, Yx, Yu, P0, Q, R)
+    
+    # 4. Store the updated states
+    estimated_states_history[i, :] = z0
+
+print("Kalman Filter execution complete.")
+
+# %%
+# =============================================================================
+# --- Plotting 3-DOF Platform Displacements (Surge, Heave, Pitch) ---
+# =============================================================================
+
+# Define labels, units, and explicit names matching your active 3 DOFs
+dof_names = ["Surge", "Heave", "Pitch"]
+units = ["m", "m", "rad"]
+n_active_dofs = len(dof_names)
+
+# Extract estimated positions (First 3 columns of your state history matrix)
+estimated_q = estimated_states_history[:, 0:n_active_dofs]
+
+# Extract corresponding raw true channels from OpenFAST for validation
+of_displ_channels = ['PtfmSurge_[m]', 'PtfmHeave_[m]', 'PtfmPitch_[deg]']
+
+if all(ch in dfOut.columns for ch in of_displ_channels):
+    # If you filtered dfOut earlier, make sure it matches the full time axis.
+    # Otherwise, extract the values directly:
+    of_true_q = dfOut[of_displ_channels].values
+    of_true_q[:, 2] = np.radians(of_true_q[:, 2]) # Convert Pitch from deg to rad
+    plot_comparison = True
+else:
+    plot_comparison = False
+
+# Construct a clean 3x1 vertical stack layout
+fig, axes = plt.subplots(n_active_dofs, 1, figsize=(10, 8), sharex=True)
+
+for idx in range(n_active_dofs):
+    ax = axes[idx]
+    
+    # Plot Kalman Filter State Estimates
+    ax.plot(time, estimated_q[:, idx], label="KF Estimate", color="crimson", linewidth=1.5)
+    
+    # Overlay OpenFAST baseline truths if available
+    if plot_comparison:
+        ax.plot(time, of_true_q[:, idx], label="OpenFAST Truth", color="black", linestyle="--", alpha=0.7)
+        
+    ax.set_title(f"Platform {dof_names[idx]}")
+    ax.set_ylabel(f"Displacement [{units[idx]}]")
+    ax.grid(True, linestyle=":", alpha=0.6)
+    # ax.set_xlim([50, 300])
+    
+    if idx == 0: 
+        ax.legend(loc="upper right")
+
+# Set shared X-axis label only on the bottom-most subplot (Pitch)
+axes[-1].set_xlabel("Time [s]")
+
+plt.tight_layout()
+plt.show()
+
+# # %%
+# # --- Plots
+
+# # =============================================================================
+# # --- Plotting 6-DOF Platform Displacements ---
+# # =============================================================================
+
+# # Define labels and units for layout
+# dof_names = ["Surge", "Sway", "Heave", "Roll", "Pitch", "Yaw"]
+# units = ["m", "m", "m", "rad", "rad", "rad"]
+
+# # Extract estimated displacements (First n_dofs columns of the history matrix)
+# estimated_q = estimated_states_history[:, 0:n_dofs]
+
+# # Optional: Extract corresponding raw true channels from OpenFAST for validation
+# # Note: Rotations in OpenFAST outputs are usually in degrees, so we convert to radians
+# of_displ_channels = ['PtfmSurge_[m]', 'PtfmSway_[m]', 'PtfmHeave_[m]', 'PtfmRoll_[deg]', 'PtfmPitch_[deg]', 'PtfmYaw_[deg]']
+
+# if all(ch in dfOut.columns for ch in of_displ_channels):
+#     of_true_q = dfOut[of_displ_channels].values
+#     of_true_q[:, 3:6] = np.radians(of_true_q[:, 3:6]) # Match rad units
+#     plot_comparison = True
+# else:
+#     plot_comparison = False
+
+# # Construct a clean 3x2 grid figure
+# fig, axes = plt.subplots(3, 2, figsize=(14, 10), sharex=True)
+# axes = axes.flatten() # Flatten to 1D to cleanly loop through 6 items
+
+# for idx in range(n_dofs):
+#     ax = axes[idx]
+    
+#     # Plot Kalman Filter State Estimates
+#     ax.plot(time, estimated_q[:, idx], label="KF Estimate", color="crimson", linewidth=1.5)
+    
+#     # Overlay OpenFAST baseline truths if available
+#     if plot_comparison:
+#         ax.plot(time, of_true_q[:, idx], label="OpenFAST Truth", color="black", linestyle="--", alpha=0.7)
+        
+#     ax.set_title(f"Platform {dof_names[idx]}")
+#     ax.set_ylabel(f"Displacement [{units[idx]}]")
+#     ax.grid(True, linestyle=":", alpha=0.6)
+    
+#     if idx == 0: # Place legend on the first subplot
+#         ax.legend(loc="upper right")
+
+# # Set shared X axis label at the bottom of the grid
+# axes[4].set_xlabel("Time [s]")
+# axes[5].set_xlabel("Time [s]")
+
+# plt.tight_layout()
+# plt.show()
+# %%

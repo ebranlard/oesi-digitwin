@@ -127,5 +127,5 @@ plt.ylim(0, 1.1) # Buffer at the top for clarity
 plt.grid(True, which='both', linestyle=':', alpha=0.5)
 plt.legend(fontsize=18)
 plt.tick_params(axis='both', labelsize=14)
-plt.savefig(r"C:\Jonah\Uni\PhD\Conferences\NAWEA_2026\OESI\figures\spectrum.pdf", dpi=300, bbox_inches='tight')
+# plt.savefig(r"C:\Jonah\Uni\PhD\Conferences\NAWEA_2026\OESI\figures\spectrum.pdf", dpi=300, bbox_inches='tight')
 plt.show()

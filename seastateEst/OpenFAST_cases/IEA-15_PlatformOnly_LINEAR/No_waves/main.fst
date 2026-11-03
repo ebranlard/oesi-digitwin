@@ -17,7 +17,7 @@ False                  Echo        - Echo input data to <RootName>.ech (flag)
 1                      CompSeaSt   - Compute sea state information (switch) {0=None; 1=SeaState}
 1                      CompHydro   - Compute hydrodynamic loads (switch) {0=None; 1=HydroDyn}
 0                      CompSub     - Compute sub-structural dynamics (switch) {0=None; 1=SubDyn; 2=External Platform MCKF}
-0                      CompMooring - Compute mooring system (switch) {0=None; 1=MAP++; 2=FEAMooring; 3=MoorDyn; 4=OrcaFlex}
+3                      CompMooring - Compute mooring system (switch) {0=None; 1=MAP++; 2=FEAMooring; 3=MoorDyn; 4=OrcaFlex}
 0                      CompIce     - Compute ice loads (switch) {0=None; 1=IceFloe; 2=IceDyn}
 0                      MHK         - MHK turbine type (switch) {0=Not an MHK turbine; 1=Fixed MHK turbine; 2=Floating MHK turbine}
 ---------------------- ENVIRONMENTAL CONDITIONS --------------------------------
