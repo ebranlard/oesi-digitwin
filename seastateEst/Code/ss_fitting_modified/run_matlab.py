@@ -68,7 +68,7 @@ options_exc = {
     "dT": 0.2,                                  # Time step (should match FAST)
     "Fit": 0.99,                                # Fit required for the parametric model (max. recomended 0.99)
     "ppmf": 1,                                  # Plot the parametric model fit (0 or 1)
-    "fmt": 1,                                   # Manual (1) or Automatic(0) order reduction (Only if method=4)
+    "fmt": 0,                                   # Manual (1) or Automatic(0) order reduction (Only if method=4)
     "maxiter": 15,                              # maximum number of iterations for the Automatic method
     "WtrDen": 1025.0,                           # Water density (kg/m^3)
     "Grav": 9.80665,                            # Gravitational acceleration (m/s^2)

@@ -1,3 +1,4 @@
+#%%
 # Enable Autoreload
 import notebook_setup # type: ignore
 notebook_setup.enable_autoreload()
@@ -19,6 +20,8 @@ from seastateEst import FRad
 from seastateEst import linData
 from seastateEst import read_ssFiles
 from seastateEst import wave_filter
+from seastateEst import kalman_helper
+#%%
 
 # =============================================================================
 # --- Parameters defining the system and simulation ---
@@ -32,6 +35,7 @@ dof = {
     "Pitch": True,
     "Yaw": False,
 }
+active_dof = list(dof.values())
 n_dofs = sum(dof.values())
 
 # --- Structure mass
@@ -43,7 +47,6 @@ A_inf = FRad.Ainf(filepath_Ainf, WtrDens=1025)
 # Total mass
 M = M_s + A_inf
 # Filter for active dofs
-active_dof = list(dof.values())
 M = M[np.ix_(active_dof, active_dof)]
 # Compute inverse mass
 M_inv = np.linalg.inv(M)
@@ -80,10 +83,12 @@ dfOut = FASTOutputFile(os.path.join(filepath_OF, 'main.out')).toDataFrame()
 dfHDsum = FRad.RdtnKrnl(os.path.join(filepath_OF, 'main.HD.sum'))
 
 # Velocity and acceleration channels in dfOut
+displacement_channels = of_displs_full = ['PtfmSurge_[m]', 'PtfmSway_[m]', 'PtfmHeave_[m]', 'PtfmRoll_[deg]', 'PtfmPitch_[deg]', 'PtfmYaw_[deg]']
 velocity_channels = ['PtfmTVxi_[m/s]', 'PtfmTVyi_[m/s]', 'PtfmTVzi_[m/s]', 'PtfmRVxi_[deg/s]', 'PtfmRVyi_[deg/s]', 'PtfmRVzi_[deg/s]']
 accel_channels = ['PtfmTAxi_[m/s^2]', 'PtfmTAyi_[m/s^2]', 'PtfmTAzi_[m/s^2]', 'PtfmRAxi_[deg/s^2]', 'PtfmRAyi_[deg/s^2]', 'PtfmRAzi_[deg/s^2]']
 
 # Extract values from dfOut
+displacement_history = dfOut[displacement_channels].values.T
 velocity_history = dfOut[velocity_channels].values.T
 velocity_history[3:6, :] = np.radians(velocity_history[3:6, :]) # Convert Roll, Pitch and Yaw velocities from deg/s to rad/s
 accel_history = dfOut[accel_channels].values.T
@@ -124,7 +129,7 @@ B = np.block([
 ])
 
 # --- Error levels of the measurements
-R_diags = [1e-5, 1e-5, 1e-5, 1e-7, 1e-7, 1e-7]  #TODO use more realistic values for R
+R_diags = [1e-5, 1e-5, 1e2, 1e-3, 1e-3, 1e-3]  #TODO use more realistic values for R
 R_diags = np.array(R_diags)[active_dof]         # Filter for active DoFs
 R = np.diag(R_diags)
 
@@ -139,14 +144,21 @@ B_w = np.block([
 ])
 
 # Noise Covariance Matrix
-var_u_eta = 1.0**2       # Standard unit variance for the wave filter
-var_f_trans = 1e-2        # Allows translational forces to drift ~10kN/sec
-var_f_rot = 1e-4         # Allows rotational moments to drift ~100kNm/sec
+var_u_eta = 0.2**2      # Standard unit variance for the wave filter
+var_f_surge = 1e-2
+var_f_sway = 1e-4
+var_f_heave = 1e1        
+var_f_roll = 1e-2
+var_f_pitch = 1e-1        
+var_f_yaw = 1e-2
 
-# Construct the diagonal elements for W
-W_diags = [var_u_eta] + [var_f_trans]*3 + [var_f_rot]*3
-W_diags = [W_diags[0]] + list(np.array(W_diags[1:])[active_dof])    # Filter for active DoFs
+# Construct the diagonal elements for W and apply active_dof filter
+W_diags_full = [var_u_eta, var_f_surge, var_f_sway, var_f_heave, var_f_roll, var_f_pitch, var_f_yaw] 
+W_diags = [W_diags_full[0]] + list(np.array(W_diags_full[1:])[active_dof])
 W = np.diag(W_diags)
+# W_diags = [var_u_eta] + [var_f_trans]*3 + [var_f_rot]*3
+# W_diags = [W_diags[0]] + list(np.array(W_diags[1:])[active_dof])    # Filter for active DoFs
+# W = np.diag(W_diags)
 
 # Project into full state space process noise
 Q_continuous = B_w @ W @ B_w.T
@@ -165,11 +177,9 @@ Xxd, Xud = kalman.KFDiscretize(A, B, dt, method='exponential')
 Q = Q_continuous * dt
 
 # 4. Construct Measurement Matrices (Yx and Yu)
-# Because your sensors measure acceleration (\ddot{q}), your measurement 
-# equations are identical to the structural acceleration rows of your state space.
-# We can cleanly extract these directly from rows [n_dofs : 2*n_dofs] of A and B:
-Yx = A[n_dofs : 2 * n_dofs, :]
-Yu = B[n_dofs : 2 * n_dofs, :]
+Yx, Yu = kalman_helper.build_mixed_measurement_matrices(A, B, dof)
+# Yx = A[n_dofs : 2 * n_dofs, :]
+# Yu = B[n_dofs : 2 * n_dofs, :]
 # Yx = np.block([
 #     [-inv_M_K, -inv_M_C, M_inv @ C_exc, np.zeros((n_dofs, n_eta)), np.zeros((n_dofs, n_dofs))]
 # ])
@@ -184,7 +194,7 @@ Yu = B[n_dofs : 2 * n_dofs, :]
 # Initialize states and state error covariance matrix
 n_states = A.shape[0]
 z0 = np.zeros(n_states)          # Initial guess for all states (zeros)
-# z0[2] = -0.4                   # Initial heave displacement
+z0[1] = -0.44                   # Initial heave displacement
 P0 = np.eye(n_states) * 1e-2     # Initial state uncertainty baseline
 
 # Pre-allocate array to store estimated states over time
@@ -202,7 +212,21 @@ for i in range(1, len(time)):
     
     # 2. Extract inputs and measurements for current time step n
     u1 = F_mem.flatten()                  # Input vector (shape: n_dofs,)
-    y1 = accel_history[:, i][active_dof]    # Measured accelerations (shape: n_dofs,)
+    # y1 = accel_history[:, i][active_dof]    # Measured accelerations (shape: n_dofs,)
+
+    # Dynamically Assemble Mixed Vector y1 for current step i
+    y1_elements = []
+    for idx in range(6):
+        if active_dof[idx]:
+            # If it is an active translational DOF (Surge=0, Heave=2), extract ACCELERATION
+            if idx < 3:
+                y1_elements.append(accel_history[idx, i])
+            # If it is an active rotational DOF (Pitch=4), extract INCLINATION POSITION
+            else:
+                y1_elements.append(displacement_history[idx, i])
+                
+    y1 = np.array(y1_elements)            # Mixed measurement vector (shape: 3,)
+
     
     # 3. Process time-step through the Kalman Filter engine
     z0, P0, Kk = kalman.EstimateKFTimeStep(u1, y1, z0, Xxd, Xud, Yx, Yu, P0, Q, R)
@@ -264,6 +288,26 @@ axes[-1].set_xlabel("Time [s]")
 plt.tight_layout()
 plt.show()
 
+# =============================================================================
+# --- Plotting Wave Elevation (Sea-State Tracking) ---
+# =============================================================================
+estimated_wave_elevation = estimated_states_history[:, 2 * n_dofs + n_exc]
+
+# Match the styling, sizing, and colors of your structural figures
+plt.figure(figsize=(10, 3))
+plt.plot(time, estimated_wave_elevation, label="KF Estimate", color="crimson", linewidth=1.5)
+plt.plot(time, dfOut['Wave1Elev_[m]'].to_numpy(), label="OpenFAST Truth", color="black", linestyle="--", alpha=0.7)
+
+# Match structural plot labeling and grid style
+plt.title("Wave Elevation")
+plt.ylabel("Displacement [m]")
+plt.xlabel("Time [s]")
+plt.grid(True, linestyle=":", alpha=0.6)
+plt.legend(loc="upper right")
+
+plt.tight_layout()
+plt.show()
+
 # # %%
 # # --- Plots
 
@@ -316,4 +360,6 @@ plt.show()
 
 # plt.tight_layout()
 # plt.show()
+
+
 # %%
