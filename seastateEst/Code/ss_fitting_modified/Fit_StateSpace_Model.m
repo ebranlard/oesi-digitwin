@@ -178,6 +178,46 @@ else
 end
 ssExcite(q).D=DM;
 
+% ==========================================
+% ADDED for recreating K_i plots in python
+% This stores the necessary data into .mat files
+% ==========================================
+% Extract the specific column of KtSmooth used for this iteration
+KtSmooth_col = KtSmooth(:, dof(s));
+
+% Get Nmin to match lengths exactly like your plot code does
+NKt = length(KtSmooth_col);
+Ny = length(y);
+Nmin = min(NKt, Ny);
+
+% Crop variables to plotting sizes
+time_original = plottime(1:Nmin);
+irf_original  = KtSmooth_col(1:Nmin);
+time_high_ss  = t(1:Nmin);
+irf_high_ss   = y(1:Nmin);
+time_low_ss   = T;
+irf_low_ss    = Y;
+
+% Save order string (e.g., "15")
+ss_order = num2str(Nn(iii));
+
+% Save title/labels info
+if s > 3
+    ylabel_str = '[kg.m^2/s^2]';
+else
+    ylabel_str = '[kg/s^2]';
+end
+title_str = ['K_{', num2str(dof(s)), '}(t)'];
+
+% Save everything into a dynamically named .mat file (e.g., plot_data_1.mat)
+folder_name = 'plot_data';
+filename = fullfile(folder_name, sprintf('plot_data_%d.mat', s));
+save(filename, 'time_original', 'irf_original', ...
+    'time_high_ss', 'irf_high_ss', ...
+    'time_low_ss', 'irf_low_ss', ...
+    'ss_order', 'ylabel_str', 'title_str');
+% ==========================================
+
 %if r==s, N(s,r)=dof(s); else N(s,r)=-1; end  %Real DoFs          
 q=q+1;
     

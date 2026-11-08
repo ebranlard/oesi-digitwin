@@ -1,6 +1,9 @@
 import os
+import numpy as np
 import shutil
+from scipy.io import loadmat
 import matlab.engine
+import matplotlib.pyplot as plt
 
 def startMatlabEngine():
     ### To Share MATLAB engine open MATLAB and type in the MATLAB command window: matlab.engine.shareEngine
@@ -40,6 +43,65 @@ def RedOrder_SSexc(n, options):
     n = matlab.double(n)
     return n
 
+def recreate_matlab_plot(iteration_index=1):
+    # Load the generated mat file
+    mat_file = os.path.join("plot_data", f"plot_data_{iteration_index}.mat")
+    try:
+        data = loadmat(mat_file)
+    except FileNotFoundError:
+        print(
+            f"Error: {mat_file} not found. Ensure the MATLAB function ran successfully."
+        )
+        return
+
+    # Extract arrays and flatten them to 1D vectors
+    t_orig = data["time_original"].flatten()
+    y_orig = data["irf_original"].flatten()
+
+    t_high = data["time_high_ss"].flatten()
+    y_high = data["irf_high_ss"].flatten()
+
+    t_low = data["time_low_ss"].flatten()
+    y_low = data["irf_low_ss"].flatten()
+
+    # Extract string metadata
+    order = str(data["ss_order"][0])
+    ylabel = str(data["ylabel_str"][0])
+    # title_text = str(data["title_str"][0])
+    title_text = str(data['title_str']).strip()
+
+    # Recreate the precise plot layout
+    plt.figure(figsize=(12, 5.5))
+
+    # Match lines styles and colors from the original MATLAB image
+    plt.plot(t_orig, y_orig, label="Original IRF", color="#1f77b4", linewidth=2)
+    plt.plot(
+        t_high,
+        y_high,
+        label="high order ss approx",
+        color="#d62728",
+        linewidth=2,
+    )
+    plt.plot(
+        t_low,
+        y_low,
+        label=f"{order} th order ss approx",
+        color="#ff7f0e",
+        linewidth=2,
+    )
+
+    # Add styling details matching the figure
+    plt.title(f"${title_text}$", fontsize=14)
+    plt.xlabel("Time [s]")
+    plt.ylabel(ylabel)
+    plt.xlim(0, 40)  # Bound to 40 seconds
+    plt.grid(True, linestyle=":", alpha=0.6)
+    plt.legend(loc="upper right")
+
+    # Clean up background style
+    plt.tight_layout()
+    plt.show()
+
 ### --- ### Run the script. 
 ## Inputs for SSRad
 options_rad = {
@@ -59,7 +121,7 @@ options_rad = {
 
 
 ## Inputs for SSexc
-tc = 0
+tc = 12
 
 options_exc = {
     "FileName": r"C:\Jonah\Uni\PhD\OESI\seastateEst\Code\ss_fitting_modified\HydroData\marin_semi", # Wamit Files name and Location
@@ -68,19 +130,22 @@ options_exc = {
     "dT": 0.2,                                  # Time step (should match FAST)
     "Fit": 0.99,                                # Fit required for the parametric model (max. recomended 0.99)
     "ppmf": 1,                                  # Plot the parametric model fit (0 or 1)
-    "fmt": 0,                                   # Manual (1) or Automatic(0) order reduction (Only if method=4)
+    "fmt": 1,                                   # Manual (1) or Automatic(0) order reduction (Only if method=4)
     "maxiter": 15,                              # maximum number of iterations for the Automatic method
     "WtrDen": 1025.0,                           # Water density (kg/m^3)
     "Grav": 9.80665,                            # Gravitational acceleration (m/s^2)
     "WaveDir": 0.0,                             # Incident wave propagation heading direction (degrees) [unused when WaveMod=0]
     "OutFileName": "marin_semi"                 # Output file name
 }
-base_n = [2, 2, 2, 2, 2, 4] # Order of the fit for each DoF
+base_n = [3, 15, 7, 12, 6, 15] # Order of the fit for each DoF
 manual_order_SSexc = RedOrder_SSexc(base_n, options_exc) # Order of the fit filtered as needed for input of the MATLAB function
 
 eng = startMatlabEngine()
 eng.SS_Fitting_Wave_Excitation(options_exc,tc,manual_order_SSexc,nargout=0) # nargout=0 is required for scripts or functions that do not return output variables.
 stopMatlabEngine(eng)
+
+# Plot the results from the MATLAB function using the saved .mat file
+recreate_matlab_plot(iteration_index=3)
 
 ### --- Running as a loop
 # source_file_dir = r"C:\Jonah\Uni\PhD\OESI\Code\ss_fitting_modified\HydroData"
@@ -138,3 +203,5 @@ stopMatlabEngine(eng)
 #         shutil.copy(default_output, target_output)
 
 # stopMatlabEngine(eng)
+
+

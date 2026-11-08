@@ -2,16 +2,15 @@ function [Newtime,ssExcite,Aglobal,Bglobal,Cglobal,Dglobal]= SS_Fitting_Wave_Exc
 %% State Space fitting of the convolution integral
 % This routine fits a state-space model for the convolution term of wave
 % excitation forces on a floating body, based on the coefficients of WAMIT. 
-% All the inputs should be define in the "opt_file". 
+%
 % Alan Wright February - April 2018
-% To run the code please type in the comand window: 
-% >> SS_Fitting_Wave_Excitation('SS_Fitting_Options.log')
+%
 % Please refer to the Theory and UserManual for more information.
 %
 % This routine was developed by:
 % National Renewable Energy Lab
 %
-% This is a modified version by Jonah Hanak that uses python as a wrapper
+% This is a modified version of the original code by Jonah Hanak that uses python as a wrapper
 % 
 % V1.00.01
 
@@ -347,7 +346,7 @@ FirstPass = '.True.';
 %% Call the CausalIRF function to form a causal IRF from the original IRF through application of
 % a time delay:
 %tc_input = 12
-tc_input = tc_from_python
+tc_input = tc_from_python;
 [Newtime,KtNew,ii,tc] = CausalIRF(gp,Excite,Kc1,w,dT,tc_input);  
 
 %% define dof vector that will be needed in the Fit_Statespace_Model routine:

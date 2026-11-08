@@ -39,17 +39,18 @@ active_dof = list(dof.values())
 n_dofs = sum(dof.values())
 
 # --- Structure mass
-filepath_mass = r"C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_Full_LINEAR_Falling\main.1.lin"
-M_s, __ = linData.rigidBodyMass(filepath_mass)
-# Added mass at infinite frequency
-filepath_Ainf = r"C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_Full\HydroData\IEA-15-240-RWT-UMaineSemi.1"
-A_inf = FRad.Ainf(filepath_Ainf, WtrDens=1025)
-# Total mass
-M = M_s + A_inf
-# Filter for active dofs
-M = M[np.ix_(active_dof, active_dof)]
-# Compute inverse mass
-M_inv = np.linalg.inv(M)
+# filepath_mass = r"C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_Full_LINEAR_Falling\main.1.lin" #TODO fix Ainf to account for active_dof, M already does this
+# M_s, __ = linData.rigidBodyMass(filepath_mass)
+# # Added mass at infinite frequency
+# filepath_Ainf = r"C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_Full\HydroData\IEA-15-240-RWT-UMaineSemi.1"
+# A_inf = FRad.Ainf(filepath_Ainf, WtrDens=1025)
+# # Total mass
+# M = M_s + A_inf
+# # Filter for active dofs
+# M = M[np.ix_(active_dof, active_dof)]
+# # Compute inverse mass
+# M_inv = np.linalg.inv(M)
+M, M_inv = linData.rigidBodyMass(r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_v5.0\main_lin.1.lin')
 
 # --- Stiffness (K) and damping (C)
 # filepath_KC = r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves' #TODO chose from what OpenFAST simulation I really want K and C
@@ -71,7 +72,7 @@ assert dof["Yaw"]   == ED_file["PtfmYDOF"],  "Yaw DOF mismatch!"
 
 # --- SS_EXCTN matrices
 # filepath_ssexctn = r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\Parametric_study\Lock_Rad\HydroData\marin_semi_Fit0.2_2_2_2_2_2_4.ssexctn'
-filepath_ssexctn = r'C:\Jonah\Uni\PhD\OESI\seastateEst\Code\ss_fitting_modified\HydroData\marin_semi.ssexctn'
+filepath_ssexctn = r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_v5.0\HydroData\marin_semi.ssexctn'
 A_exc, B_exc, C_exc, n_exc, m_exc = read_ssFiles.read_ssexctn(filepath_ssexctn)
 
 # Reduce Exctn matrices depening on active dofs
@@ -89,6 +90,7 @@ accel_channels = ['PtfmTAxi_[m/s^2]', 'PtfmTAyi_[m/s^2]', 'PtfmTAzi_[m/s^2]', 'P
 
 # Extract values from dfOut
 displacement_history = dfOut[displacement_channels].values.T
+displacement_history[3:6, :] = np.radians(displacement_history[3:6, :]) # Convert Roll, Pitch and Yaw displacements from deg to rad
 velocity_history = dfOut[velocity_channels].values.T
 velocity_history[3:6, :] = np.radians(velocity_history[3:6, :]) # Convert Roll, Pitch and Yaw velocities from deg/s to rad/s
 accel_history = dfOut[accel_channels].values.T
@@ -129,7 +131,7 @@ B = np.block([
 ])
 
 # --- Error levels of the measurements
-R_diags = [1e-5, 1e-5, 1e2, 1e-3, 1e-3, 1e-3]  #TODO use more realistic values for R
+R_diags = [1e-5, 1e-5, 1e-2, 1e-3, 1e-3, 1e-3]  #TODO use more realistic values for R
 R_diags = np.array(R_diags)[active_dof]         # Filter for active DoFs
 R = np.diag(R_diags)
 
@@ -171,7 +173,8 @@ Q_continuous = B_w @ W @ B_w.T
 dt = time[1] - time[0]
 
 # 2. Discretize the state matrices
-Xxd, Xud = kalman.KFDiscretize(A, B, dt, method='exponential')
+# Xxd, Xud = kalman.KFDiscretize(A, B, dt, method='exponential')
+Xxd, Xud = kalman_helper.discretize_exact(A, B, dt)
 
 # 3. Scale process noise to discrete-time
 Q = Q_continuous * dt
