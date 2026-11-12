@@ -1,0 +1,668 @@
+ W 1.4 P.754: Physics-Based Digital Twin
+Solutions for Health Monitoring of Offshore
+              Energy Systems
+
+
+            Milestone 5, Deliverable 3.1:
+     Review on SHM and condition-based O&M
+
+
+                 Jonah Hanak, Emmanuel Branlard, Jason Jonkman
+
+
+                                         May 2026
+
+ This document provides a comprehensive literature review on condition-based operations
+ and maintenance (O&M) tools for the structural health monitoring (SHM) of offshore
+ structures. It synthesizes recent advancements in physical strain sensing, global vibration-
+ based methods, and image recognition techniques. Special emphasis is placed on modern
+ physics-based digital twins and virtual sensing frameworks, evaluating their capability
+ to map operational telemetry into actionable, low-cost predictive maintenance decisions.
+                                        Contents
+
+
+Contents
+
+1 Notes on Kalman-Filters                                                                 1
+
+2 Assembling the state-space system                                                       2
+  2.1 Rigid body mass matrix . . . . . . . . . . . . . . . . . . . . . . . . . . .        2
+      2.1.1 Retrieving M from an OpenFAST .lin file . . . . . . . . . . . . . .           3
+  2.2 Second order wave shaping filter . . . . . . . . . . . . . . . . . . . . . . .      5
+      2.2.1 Derivation of filter spectrum . . . . . . . . . . . . . . . . . . . . .       5
+      2.2.2 Determining parameters for the spectrum . . . . . . . . . . . . . .           7
+  2.3 Excitation state-space fitting . . . . . . . . . . . . . . . . . . . . . . . . .    8
+  2.4 Radiation convolution integral . . . . . . . . . . . . . . . . . . . . . . . .      9
+
+3 Prescribing η and retrieving displacement and velocity                                 12
+
+
+
+
+                                             i
+                              1 Notes on Kalman-Filters
+
+
+1 Notes on Kalman-Filters
+
+A Kalman filter allows for the estimation of variables that are not physically being
+measured, while filtering out noise from sensors. It combines information from two
+imperfect sources:
+
+   1. The physics model (Prediction): The error level Q of the physics model depends
+      on the choice of simplifications. Example: Wind speed is assumed to be steady
+
+   2. The sensors (Measurements): The error level R of the measurements depends on
+      the level of noise in the data. The noise can come from various sources such as
+      temperature, electrical noise, etc.
+
+The Kalman filter predicts the systems’state’s using the physics model and corrects its
+estimate using the real measurements. It uses only the measurements from the current
+and previous time step. This process is repeated recursively. The covariance matrix P of
+the filter determines how much weight the physics model and estimate each have. The
+covariance matrix tracks the uncertainty and cross-correlation within the states. As an
+example:
+
+   1. If a floating platform has been tracking smoothly for an hour, P will be very small.
+      The past estimate is likely very good, therefore a noisy sensor reading won’t tip
+      the digital twin’s estimate.
+
+   2. If a floating platform was just it by a large unexpected wave which the physics
+      model couldn’t predict, P will spike. The Kalman filter will now de-value the past
+      estimate and rely more on the incoming sensor measurements.
+
+
+
+
+                                            1
+                             2 Assembling the state-space system
+
+
+2 Assembling the state-space system
+
+We describe the motion using a modified version of Cummins equation [1]. The Equation
+of motion with linearized structural, mooring and buoyancy properties is:
+
+
+            Ms q̈(t) + Cs q̇(t) + (Ks + Km + Kb )q(t) = Frad (t) + Fexc (t) + Fbias (t)        (1)
+
+The full formulation of the state-space system if radiation is fitted to a state-space model
+and the bias force is ignored is:
+NOTE: Potentially we will add an Fbias (unmodeled loads from drag, drift, wind)
+
+
+                                                                              
+       q̇      0      I     0      0       0        q        0
+                                                    
+     q̈   −M−1 K −M−1 C M−1 C −M−1 C    0   q̇   0 
+                                                        
+                       s     e       r                      
+    q̇  =                              Be Cη  qhe  +  0                                (2)
+                                                    
+     he      0      0     Ae     0                            uη
+                                                        
+            
+                                                    
+    q̇hr 
+         
+            
+              0      Br    0      Ar      0  qhr   0 
+                                                        
+                                                               
+      q̇η      0      0     0      0       Aη       qη      Bη
+
+
+Considering the bias force and solving the convolution integral in the radiation force
+directly, the state-space system is:
+
+
+                                                                                    
+   q̇        0      I     0       0     0        q        0   0                           0
+                                                                                          
+ q̈     −M−1 K −M−1 C M−1 C    0      −1  
+                                       M   q̇  M       −1
+                                                              0                           0 Fmem
+                                                       
+                     s      e
+ q̇  = 
+                                              qhe  +  0
+                                                                                          
+ he       0      0     Ae     Be Cη  0                 0                           0  uη 
+                                                                                                  
+                                                                                     
+ q̇η 
+       
+          
+            0      0     0       Aη    0   qη   0
+                                                          Bη                          0   uf
+ Ḟbias      0      0     0       0     0      Fbias      0   0                           I
+                                                                                               (3)
+
+
+2.1 Rigid body mass matrix
+
+From [2]:
+
+
+
+                                                2
+                           2 Assembling the state-space system
+
+
+
+                           0    0    0
+                                                                           
+                       m                 mzG −myG
+                     0         0         0
+                                                  
+                          m        −mzG      mxG 
+                     0    0    m   myG −mxG   0 
+                                                  
+              MRB = 
+                                                                                       (4)
+                     0   −mzG myG   Ix  −Ixy −Ixz 
+                                                   
+                           0
+                                                  
+                     mz
+                       G      −mxG −Iyx  Iy  −Iyz 
+                                                   
+                     −myG mxG   0   −Izx −Izy  Iz
+
+This is the fully general rigid body mass matrix valid for absolutely no symmetry and
+an arbitrary origin. I is the mass moment of inertia (kg m2 ). xG , yG and zG are the
+distances from the chosen origin to the center of gravity and m is the total mass.
+Note: In [3] on page 67 there is a simplified version of this matrix, which assumes the
+origin of the coordinate system is in the center of gravity and it assumes the body has
+lateral symmetry.
+
+
+2.1.1 Retrieving M from an OpenFAST .lin file
+
+A wind turbine system modeled in OpenFAST is governed by the structural equations of
+motion:
+
+
+                           M (q)q̈ + C(q, q̇)q̇ + K(q)q = F (q, q̇, q̈)                  (5)
+
+Where:
+
+   • q, q̇, q̈: The generalized structural coordinates, velocities, and accelerations.
+
+   • M (q): The global mass matrix (containing structural mass and hydrodynamic
+     added mass A∞ ).
+
+   • F : The vector of external forces (aerodynamic, hydrodynamic, mooring, and control
+     inputs u).
+
+Linearization in OpenFAST looks at small deviations (perturbations denoted by ∆)
+around a steady operating point. If we isolate just the forces applied directly to the
+platform (∆uptfm ) and look at the immediate acceleration response (∆q̈ptfm ), the stiffness
+
+
+
+                                                3
+                          2 Assembling the state-space system
+
+
+(K) and damping (C) terms drop out because they require time to pass or positions to
+change before they can generate forces. Eq. (5) becomes:
+
+
+                               Mptf m · ∆q̈ptf m = ∆uptf m                             (6)
+
+To solve for the accelerations, we multiply both sides by the inverse mass matrix:
+
+
+                               ∆q̈ptf m = Mptf
+                                           −1
+                                               m · ∆uptf m                             (7)
+
+In OpenFAST the continuous state-space equation for the state derivatives is:
+
+
+                                   ∆ẋ = A∆x + B∆u                                     (8)
+
+If we assume the system is sitting exactly at its operating point for a split second, the
+state perturbation is zero (∆x = 0). The equation reduces to:
+
+
+                                       ∆ẋ = B∆u                                       (9)
+
+If we strictly isolate the rows for platform velocity state derivatives (∆q̈ptfm ) and the
+columns for platform force inputs (∆uptfm ), we get our specific 6x6 Bsubset :
+
+
+                               ∆q̈ptf m = Bsubset · ∆uptf m                           (10)
+
+By comparing Eq. (7) with Eq. (10) we find that the Bsubset matrix mathematically is
+the inverse mass matrix:
+
+
+                                    Mptf m = B−1
+                                              subset                                  (11)
+
+See also NLR forum post from Jason: OpenFAST Linearization for RNA moments of
+inertia
+
+
+
+
+                                            4
+                          2 Assembling the state-space system
+
+
+2.2 Second order wave shaping filter
+
+                                   η̈ + 2ζω0 η̇ + ω02 η = kw uη                           (12)
+
+where η is the wave elevation, ω0 , ζ and kw are parameters tuned such that the filter
+matches the wave spectrum, uη is Gaussian white noise. State space representation of
+Equation (12):
+
+                                                                 
+                           η̇
+                           =
+                                0    1  η   0 
+                                  2
+                                             +      uη                                    (13)
+                           η̈  −ω0 −2ζω0 η̇    kw
+
+which is equivalent to:
+
+
+                                        q̇η = Aη qη + Bη uη
+                                                                                          (14)
+                                            η = C η qη
+
+                                        h       iT                  h   i
+The wave elevation state is qη = η η̇                with Cη = 1 0 . The wave elevation filter
+spectrum is given by:
+
+                                                         2
+                                                       kw
+                          Sη (f ) =                                                       (15)
+                                        16π 4 [(f02 − f 2 )2 + (2ζf0 f )2 ]
+
+
+2.2.1 Derivation of filter spectrum
+
+Assuming zero initial conditions:
+
+                              η̈ + 2ζω0 η̇ + ω02 η = kw uη                    L{}         (16)
+               s2 η(s) + 2ζω0 sη(s) + ω02 η(s) = kw U (s)                                 (17)
+                          h                          i
+                     η(s) s2 + 2ζω0 s + ω02 = kw U (s)                                    (18)
+
+
+Therefore, the transfer function H(s) is:
+
+
+
+
+                                                         5
+                          2 Assembling the state-space system
+
+
+
+                                    η(s)         kw
+                           H(s) =         = 2                                     (19)
+                                    U (s)  s + 2ζω0 s + ω02
+
+The spectrum of the input Sη is directly related to the spectrum of the output SU (see
+Emmanuel lecture notes A.12.2):
+
+
+                                Sη (ω) = |H(jω)|2 SU (ω)                          (20)
+
+Because we are assuming that uh is a Gaussian white noise process, the spectrum of the
+output SU = 1. Finding H(jω):
+
+
+
+                                kw
+               H(jω) =                                                            (21)
+                          −ω + 2ζω0 jω + ω02
+                            2
+
+                                  kw
+                      =                                                           (22)
+                        (ω0 − ω) + j(2ζω0 ω)
+                           2
+
+                                    kw (ω02 − ω) − j(2ζω0 ω)
+                                                             
+                      =                                                           (23)
+                        [(ω02 − ω) + j(2ζω0 ω)] · [(ω02 − ω) − j(2ζω0 ω)]
+                        kw (ω02 − ω) − j(2ζω0 ω)
+                                                   
+                      =                                                           (24)
+                          (ω02 − ω 2 )2 + (2ζω0 ω)2
+
+Therefore:
+
+
+                                 v
+                                 u k [(ω 2 − ω)2 + (2ζω0 ω)2 ]
+                                 u 2
+                       |H(jω)| = t w 0                             2              (25)
+                                        [(ω02 − ω 2 )2 + (2ζω0 ω)2 ]
+                                    s
+                                                 kw2
+                                =                                                 (26)
+                                        (ω0 − ω ) + (2ζω0 ω)2
+                                          2    2 2
+
+
+
+Therefore:
+
+
+
+
+                                              6
+                         2 Assembling the state-space system
+
+
+                                                       2
+                                                     kw
+                          |H(jω)|2 =                                             (27)
+                                         (ω02 − ω 2 )2 + (2ζω0 ω)2
+
+Finally, the PSD of the wave elevation filter from Equation (20):
+
+
+
+                            Sη (ω) = |H(jω)|2 SU (ω)                             (28)
+                                                   | {z }
+                                                  =1
+                                                  2
+                                                kw
+                                    = 2                                          (29)
+                                     (ω0 − ω 2 )2 + (2ζω0 ω)2
+
+
+To better compare it to JONSWAP, Equation (28) can be expressed in terms of frequency
+f , related to the angular frequency by ω = 2πf :
+
+
+                                                      2
+                                                   kw
+                       Sη (f ) =                                                 (30)
+                                (4π 2 f02 − 4π 2 f 2 )2 + (2ζ4π 2 f0 f )2
+                                                  2
+                                                kw
+                              =                                                  (31)
+                                16π 4 [(f0 − f 2 )2 + (2ζf0 f )2 ]
+                                          2
+
+
+
+
+2.2.2 Determining parameters for the spectrum
+
+f0 is set to the peak frequency of the wave spectrum:
+
+                                                   1
+                                          f0 =                                   (32)
+                                                   Tp
+
+where Tp is the peak period. ζ is chosen, typically in the range: 0.05 ≤ ζ ≤ 0.15. We
+find kw by matching the value of Sη and SJONSWAP at the peak frequency:
+
+
+
+
+                                               7
+                         2 Assembling the state-space system
+
+
+
+                                                     2
+                                                   kw
+                                Sη (f0 ) =                                         (33)
+                                             16π 4 (2ζf02 )2
+                                                  2
+                                                kw
+                                           =                                       (34)
+                                             64π 4 ζ 2 f04
+                                            !
+                                           = SJONSWAP (f0 )                        (35)
+
+
+Therefore, kw must be:
+
+                                                 q
+                             kw = 8π 2 ζf02 SJONSWAP (f0 )                         (36)
+
+
+2.3 Excitation state-space fitting
+
+See Wright et al. [4] for more details and when actually writing paper/thesis. For each
+degree of freedom, the wave excitation force can be expressed in the frequency domain
+as:
+
+
+                                Fexc (ω) = KExc (ω)η(ω)                            (37)
+
+where ω is the wave frequency, Ki,Exc (ω) is the platforms’ wave excitation frequency
+response function (FRF) for each degree of freedom and η(ω) is the complex wave height
+spectrum (including random phases). The FRF describes how the system responds to
+different wave frequencies. In the time domain the excitation force is:
+
+                                       1
+                                           Z ∞
+                         Fexc (t) =              KExc (ω)η(ω)ejωt dω               (38)
+                                      2π   −∞
+
+
+where j is the imaginary number. The excitation force in the time domain can also be
+expressed through a convolution:
+
+
+
+
+                                                 8
+                         2 Assembling the state-space system
+
+
+                                Z ∞
+                   Fexc (t) =         KExc (t − τ )η(τ )dτ = Kexc (t) ∗ η(t)         (39)
+                                −∞
+
+
+where Kexc (t) is the platforms’ wave excitation impulse response function (IRF). It
+describes how the system responds over time to a sudden, instantaneous impulse. The
+state-space approximation of Equation (39)is:
+
+
+
+                      q̇he (t) = Ae qhe (t) + Be η(t)                                (40)
+                                                Z ∞
+                     Fexc (t) = Ce qhe (t) ≈            KExc (t − τ )η(τ )dτ         (41)
+                                                 −∞
+
+
+
+2.4 Radiation convolution integral
+
+The radiation force is a result of the structure displacing its surrounding water as it
+moves, creating waves that radiate away from the body. It is expressed as an added mass
+force depended on the added mass at infinite frequency A∞ , as well as a convolution of
+the radiation impulse response function Krad (t), also known as the radiation kernel, and
+the body velocity:
+
+
+                                                 Z t
+                      Frad (t) = −A∞ q̈(t) −            Krad (t − τ )q̇(τ )dτ        (42)
+                                                    0
+
+
+Here τ is the integration variable representing past time. For a six degree of freedom
+platform, Krad (t) is a 6x6 matrix. We move the added mass term to the left-hand side of
+Cummins equation. The total mass matrix becomes a summation of the added mass and
+structural mass matrices:
+
+
+
+                                        M = Ms + A∞                                  (43)
+
+
+
+
+                                                9
+                          2 Assembling the state-space system
+
+
+The convolution in Equation (42) represents the force due to the fluid memory Fmem of
+the structures’ history of motion:
+
+
+                                            Z t
+                           Fmem (t) = −           Krad (t − τ )q̇(τ )dτ               (44)
+                                             0
+
+
+Computing Fmem is typically expensive, as it requires knowledge of the platform’s entire
+history of motion since it left its resting position. Many numerical codes therefore limit
+the integration to a truncated time history of the platform’s motion (a couple quotes
+would be great here). The accuracy of this assumption depends heavily on the step size
+∆t, how much history is included in the simulation tmemory , as well as the quality of
+the impulse-response function. Using the truncated formulation, Equation (44) can be
+rewritten as:
+
+
+                                      Z t
+                       Fmem (t) = −                    Krad (t − τ )q̇(τ )dτ          (45)
+                                       t−tmemory
+
+
+
+To numerically evaluate the convolution, we first discretize our time using a uniform step
+size ∆t:
+
+
+
+                                tk = k∆t,              k ∈ [0, n]                     (46)
+
+
+where k is an index and n is the total number of discrete time steps. Therefore, tn = n∆t
+is the current time. We define the integrand as:
+
+
+
+                                 g(τ ) = Krad (t − τ )q̇(τ )                          (47)
+
+
+
+
+                                                  10
+                          2 Assembling the state-space system
+
+
+Furthermore, we use the notation gk = g(τ = k∆t), describing the integrand at each
+time step. We approximate the memory force by evaluating the integral using composite
+trapezoidal rule [5], yielding second order accuracy. At the current time tn the memory
+force from Equation (45) is approximated as:
+
+
+                                    Z tn
+                   Fmem (tn ) = −          g(τ )dτ                                    (48)
+                                     t0
+
+                                ∆t        n−1
+                                          "              #
+                             =−    g0 + 2     gk + g n                                (49)
+                                          X
+                                2         k=1
+
+                                ∆t            n−1
+                                          "                           #
+                             =−    Kn q̇0 + 2     Kn−k q̇k + K0 q̇n                   (50)
+                                              X
+                                2             k=1
+
+
+
+Equation (50) clearly shows the convolution’s discretization, mapping the oldest velocity
+q̇0 at t0 to the maximum-lag kernel Kn , and the latest velocity q̇n to the zero-lag kernel
+K0 , while the intermediate velocity samples are paired with the corresponding kernel
+lag.
+
+
+
+
+                                                11
+                3 Prescribing η and retrieving displacement and velocity
+
+
+3 Prescribing η and retrieving displacement and velocity
+
+The wave elevation becomes an input, therefore the state equation is:
+NOTE TO SELF: q̇hr and q̇he have been switched compared to the original plan, to
+match the way OpenFAST does this.
+
+
+                                                                    
+          q̇       0    I     0    0        q       0
+                   −1    −1   −1    −1
+                                            
+         q̈   −M K −M C M C −M C   q̇   0 
+                            s    e     r 
+              =                               +  η                        (51)
+                                              
+                                       
+        q̇he 
+             
+                
+                  0    0     Ae   0     qhe  Be 
+                                               
+         q̇hr      0    Br    0    Ar      qhr      0
+
+
+
+
+                                          12
+                                      References
+
+
+References
+
+[1] William Edward Cummins. The Impulse Response Function and Ship Motions. In
+    Symposium on Ship Theory, Hamburg, 1962.
+
+[2] Thor I. Fossen and Ola-Erik Fjellstad. Nonlinear modelling of marine vehicles in 6
+    degrees of freedom. Mathematical Modelling of Systems, 1(1):17–27, January 1995.
+
+[3] Odd M. Faltinsen. Sea Loads on Ships and Offshore Structures. Cambridge Ocean
+    Technology Series. Cambridge University Press, Cambridge, first edition, 1999.
+
+[4] Alan Wright, Jason Jonkman, Amy Robertson, and Greg Hayman.
+    SS_Wave_Excitation_Fitting. Technical report, National Renewable Energy Lab,
+    Golden, CO, 2019.
+
+[5] Brian Bradie. A Friendly Introduction to Numerical Analysis. Pearson Prentice Hall,
+    Upper Saddle River, NJ, 2006.
+
+
+
+
+                                          13
+                                      References
+
+
+Acknowledgments
+
+This research was sponsored by the Ocean Energy Safety Institute Consortium (OESIC)
+through a grant from the U.S. Department of the Interior, Bureau of Safety and En-
+vironmental Enforcement (BSEE), and the U.S. Department of Energy (DOE) and
+was accomplished under Agreement Number E21AC00000. The views and conclusions
+contained in this document are those of the authors and should not be interpreted as
+representing the opinions or policies of the U.S. Government. Mention of trade names or
+commercial products does not constitute their endorsement by the U.S. Government.
+
+
+
+
+                                          14
+

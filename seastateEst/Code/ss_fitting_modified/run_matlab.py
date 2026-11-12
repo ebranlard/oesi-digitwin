@@ -137,7 +137,7 @@ options_exc = {
     "WaveDir": 0.0,                             # Incident wave propagation heading direction (degrees) [unused when WaveMod=0]
     "OutFileName": "marin_semi"                 # Output file name
 }
-base_n = [3, 15, 7, 12, 6, 15] # Order of the fit for each DoF
+base_n = [20, 20, 20, 20, 20, 20] # Order of the fit for each DoF
 manual_order_SSexc = RedOrder_SSexc(base_n, options_exc) # Order of the fit filtered as needed for input of the MATLAB function
 
 eng = startMatlabEngine()

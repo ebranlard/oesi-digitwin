@@ -118,7 +118,7 @@ def rename_outputs(base_path, case_suffix):
 
 # --- File and Path Configurations ---
 # base_path = r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\Test_forrunningPython_DONOTDELETE'
-base_path = r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\Parametric_study\Lock_Rad'       # base_path is where the OpenFAST input files are
+base_path = r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\Parametric_study\Lock_Rad'       # base_path is where the OpenFAST input files are
 
 openfast_exe = os.path.join(base_path, "openfast_x64.exe")           # OpenFAST executable
 fst_file = os.path.join(base_path, "main.fst")                       # Main OpenFAST configuration driver file
@@ -135,60 +135,60 @@ lock = 'ss'
 
 ### --- Define the list of case suffixes to run
 ### Option 1: Create list of cases manually
-# cases = ["15_15_10_15_10_15", "Fit0.9_9_15_7_6_6_8"] # 15_15_10_15_10_15 is the 99% fit
+cases = ["10_15_7_12_6_15",] # 15_15_10_15_10_15 is the 99% fit
 
 ### Option 2: Create list of cases automatically based on what is in the folder
-search_path = os.path.join(base_path, "HydroData", "*.ssexctn")
-files = glob.glob(search_path)
+# search_path = os.path.join(base_path, "HydroData", "*.ssexctn")
+# files = glob.glob(search_path)
 
-cases = []
-for file_path in files:
-    # Get just the filename (e.g., "marin_semi_2_2_2_2_2_2.ssexctn")
-    filename = os.path.basename(file_path)
+# cases = []
+# for file_path in files:
+#     # Get just the filename (e.g., "marin_semi_2_2_2_2_2_2.ssexctn")
+#     filename = os.path.basename(file_path)
 
-    # Remove the extension (leaves "marin_semi_2_2_2_2_2_2")
-    name_without_ext = os.path.splitext(filename)[0]
+#     # Remove the extension (leaves "marin_semi_2_2_2_2_2_2")
+#     name_without_ext = os.path.splitext(filename)[0]
 
-    # Split by underscore to isolate the components
-    parts = name_without_ext.split("_")
+#     # Split by underscore to isolate the components
+#     parts = name_without_ext.split("_")
 
-    # Check if the 7th element from the right starts with "Fit"
-    if len(parts) >= 7 and parts[-7].startswith("Fit"):
-        case_string = "_".join(parts[-7:])  # Extracts "Fit0.3_2_2_2_2_2_2"
-    else:
-        case_string = "_".join(parts[-6:])  # Backward compatibility: extracts "2_2_2_2_2_2"
-
-    cases.append(case_string)
-cases.sort()
-
-### Run OpenFAST in a loop
-# for suffix in cases:
-#     # Check if the individual case item is a list or tuple
-#     if isinstance(suffix, (list, tuple)):
-#         suffix_str = "_".join(str(x) for x in suffix)
+#     # Check if the 7th element from the right starts with "Fit"
+#     if len(parts) >= 7 and parts[-7].startswith("Fit"):
+#         case_string = "_".join(parts[-7:])  # Extracts "Fit0.3_2_2_2_2_2_2"
 #     else:
-#         suffix_str = str(suffix)
-#     # ----------------------------------
+#         case_string = "_".join(parts[-6:])  # Backward compatibility: extracts "2_2_2_2_2_2"
 
-#     print(f"\n=========================================")
-#     print(f"STARTING SIMULATION CASE: {suffix_str}")
-#     print(f"=========================================")
+#     cases.append(case_string)
+# cases.sort()
 
-#     # Update the PotFile root name for the current iteration
-#     hd_data['PotFile'] = f'"HydroData/marin_semi_{suffix_str}"'
-#     hd_data.write(hydrodyn_file)
+## Run OpenFAST in a loop
+for suffix in cases:
+    # Check if the individual case item is a list or tuple
+    if isinstance(suffix, (list, tuple)):
+        suffix_str = "_".join(str(x) for x in suffix)
+    else:
+        suffix_str = str(suffix)
+    # ----------------------------------
 
-#     # Create temporary files using the standardized suffix string
-#     current_files = files_needed(base_path, suffix_str, lock)
+    print(f"\n=========================================")
+    print(f"STARTING SIMULATION CASE: {suffix_str}")
+    print(f"=========================================")
 
-#     # Run OpenFAST
-#     executeOpenFAST(openfast_exe, fst_file, base_path)
+    # Update the PotFile root name for the current iteration
+    hd_data['PotFile'] = f'"HydroData/marin_semi_{suffix_str}"'
+    hd_data.write(hydrodyn_file)
+
+    # Create temporary files using the standardized suffix string
+    current_files = files_needed(base_path, suffix_str, lock)
+
+    # Run OpenFAST
+    executeOpenFAST(openfast_exe, fst_file, base_path)
     
-#     # Rename outputs using the base path and suffix string
-#     rename_outputs(base_path, suffix_str)
+    # Rename outputs using the base path and suffix string
+    rename_outputs(base_path, suffix_str)
 
-#     # Delete temporary files
-#     delete_files(current_files, lock)
+    # Delete temporary files
+    delete_files(current_files, lock)
 
 ### Load OpenFAST .out files
 fast_data = {}

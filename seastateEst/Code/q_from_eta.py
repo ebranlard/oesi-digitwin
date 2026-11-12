@@ -34,10 +34,10 @@ dof = {
 n_dofs = sum(dof.values())
 
 # --- Structure mass
-filepath_mass = r"C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_Full_LINEAR_Falling\main.1.lin"
+filepath_mass = r"C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_Full_LINEAR_Falling\main.1.lin"
 M_s, __ = linData.rigidBodyMass(filepath_mass)
 # Added mass at infinite frequency
-filepath_Ainf = r"C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_Full\HydroData\IEA-15-240-RWT-UMaineSemi.1"
+filepath_Ainf = r"C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_Full\HydroData\IEA-15-240-RWT-UMaineSemi.1"
 A_inf = FRad.Ainf(filepath_Ainf, WtrDens=1025)
 # Total mass
 M = M_s + A_inf
@@ -48,7 +48,7 @@ M = M[np.ix_(active_dof, active_dof)]
 M_inv = np.linalg.inv(M)
 
 # --- Stiffness (K) and damping (C)
-filepath_KC = r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves\main.1.lin' #TODO chose from what OpenFAST simulation I really want K and C
+filepath_KC = r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves\main.1.lin' #TODO chose from what OpenFAST simulation I really want K and C
 inv_M_K = linData.invMK(filepath_KC, dof)   # M^(-1)*K
 inv_M_C = linData.invMC(filepath_KC, dof)   # M^(-1)*C
 
@@ -58,8 +58,8 @@ inv_M_C = linData.invMC(filepath_KC, dof)   # M^(-1)*C
 # A_exc, B_exc, C_exc, n_exc = read_ssFiles.read_ssexctn(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves\HydroData\IEA-15-240-RWT-UMaineSemi.ssexctn')
 
 # Comparison simple lin model with OF
-A_r, B_r, C_r, n_r = read_ssFiles.read_ss(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Comparison_Simple_lin_model\HydroData\marin_semi.ss')
-A_exc, B_exc, C_exc, n_exc = read_ssFiles.read_ssexctn(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Comparison_Simple_lin_model\HydroData\marin_semi.ssexctn')
+A_r, B_r, C_r, n_r = read_ssFiles.read_ss(r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Comparison_Simple_lin_model\HydroData\marin_semi.ss')
+A_exc, B_exc, C_exc, n_exc, m_exc = read_ssFiles.read_ssexctn(r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Comparison_Simple_lin_model\HydroData\marin_semi.ssexctn')
 
 
 # Filter for active dofs ONLY if this was not done when creating the ss and ssexctn files
@@ -72,7 +72,7 @@ C_exc =  C_exc[active_dof, :]
 # df = FASTOutputFile(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Waves\main.out').toDataFrame() # Heave only with waves
 # df = FASTOutputFile(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves_pitch\main.out').toDataFrame() # Pitch only no waves
 # df = FASTOutputFile(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Waves_pitch\main.out').toDataFrame() # Pitch only with waves
-df = FASTOutputFile(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Comparison_Simple_lin_model\main.out').toDataFrame() # Comparison simple lin model with OF
+df = FASTOutputFile(r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Comparison_Simple_lin_model\main.out').toDataFrame() # Comparison simple lin model with OF
 n_r = 0
 
 eta = df['Wave1Elev_[m]'].to_numpy()
@@ -93,9 +93,9 @@ B = np.block([[np.zeros((n_dofs,1))],
 
 
 # --- ALTERNATIVE: Use A and B matrix from OpenFAST .lin file
-lin = FASTLinearizationFile(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Comparison_Simple_lin_model\main.1.lin') # Comparison simple lin model with OF
-# lin = FASTLinearizationFile(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves\main.1.lin') # Heave only
-# lin = FASTLinearizationFile(r'C:\Jonah\Uni\PhD\OESI\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves_pitch\main.1.lin') # Pitch only
+lin = FASTLinearizationFile(r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\Comparison_Simple_lin_model\main.1.lin') # Comparison simple lin model with OF
+# lin = FASTLinearizationFile(r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves\main.1.lin') # Heave only
+# lin = FASTLinearizationFile(r'C:\Jonah\Uni\PhD\OESI\seastateEst\OpenFAST_cases\IEA-15_PlatformOnly_LINEAR\No_waves_pitch\main.1.lin') # Pitch only
 A_OF = lin['A']
 A_OF = A_OF
 # diff = A - A_OF

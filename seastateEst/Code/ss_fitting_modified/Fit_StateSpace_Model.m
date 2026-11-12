@@ -179,9 +179,15 @@ end
 ssExcite(q).D=DM;
 
 % ==========================================
-% ADDED for recreating K_i plots in python
+% ADDED by Jonah for recreating K_i plots in python
 % This stores the necessary data into .mat files
 % ==========================================
+% Create the target directory if it doesn't exist yet
+folder_name = 'plot_data';
+if ~exist(folder_name, 'dir')
+    mkdir(folder_name);
+end
+
 % Extract the specific column of KtSmooth used for this iteration
 KtSmooth_col = KtSmooth(:, dof(s));
 
@@ -210,7 +216,6 @@ end
 title_str = ['K_{', num2str(dof(s)), '}(t)'];
 
 % Save everything into a dynamically named .mat file (e.g., plot_data_1.mat)
-folder_name = 'plot_data';
 filename = fullfile(folder_name, sprintf('plot_data_%d.mat', s));
 save(filename, 'time_original', 'irf_original', ...
     'time_high_ss', 'irf_high_ss', ...

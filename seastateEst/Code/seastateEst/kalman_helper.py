@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import expm
 
 def build_mixed_measurement_matrices(A, B, dof):
     """
@@ -48,3 +49,18 @@ def build_mixed_measurement_matrices(A, B, dof):
     Yu_gen = np.vstack(Yu_rows)
     
     return Yx_gen, Yu_gen
+
+def discretize_exact(A, B, dt):
+    n = A.shape[0]
+    m = B.shape[1]
+
+    AB = np.zeros((n + m, n + m))
+    AB[:n, :n] = A
+    AB[:n, n:] = B
+
+    E = expm(AB * dt)
+
+    Ad = E[:n, :n]
+    Bd = E[:n, n:]
+
+    return Ad, Bd
